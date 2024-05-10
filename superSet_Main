@@ -1,0 +1,786 @@
+from cmu_graphics import *
+import copy, string, itertools, random
+'''dimension change as top and down'''
+# creative element:
+# added another theme called flipping card,the palyer will start with 8 cards facing down, 
+# which the player cannot see the content of the card
+# player are allowed to press number 1-9 to see the card contents 3 at a time
+# after four seconds after the card is fliped, the card will flip back so the user cannot see anymore
+# there are limited chances for the player to see the content, additional time to see the content will cost extra time
+# the content inside the cards has three dimension, 3,3,3 which the elements are color, number, and the speed of moving horizontally
+# I have not write the function defaulting back to the letter theme for creative element yet, so going over the dimension will not work
+####################################################
+# onAppStart: called only once when app is launched
+####################################################
+
+def onAppStart(app):
+    # different thems
+    app.level0=True
+    app.level1=False
+    app.level2=False
+    app.level3=False #creatieve
+    app.standardDimensions=[3,3,3,3]
+    app.specialDimension=[4,4,4,4]
+    app.creativeDimension=[3,3,3]
+    app.dimensions=[3,3,3]
+    restartApp(app)
+def restartApp(app):
+    app.width = 1000
+    app.height = 600
+    app.roundLeft=4
+    app.livesLeft=2
+    app.playScreenCounter = 0
+    # set dimension
+    app.themeSelectionColor0='red'
+    app.themeSelectionColor1='black'
+    app.themeSelectionColor2='black'
+    app.themeSelectionColor3='black'
+    app.LessTwoFeature=False
+    app.countGreaterFive=False
+    app.dimSumGreaterFifteen=False
+    app.letter='Letters'
+    app.standard='Standard'
+    app.special='Special'
+    app.creative='Creative'
+    app.countInDimensions=0
+    # play screen
+    app.inRangeNumber=[]
+    app.madeClickInPlay=False
+    app.countClicks=0
+    app.howManyCard=min(app.dimensions)
+    app.finalResult=True
+    app.board,app.foundSet=getRandomBoardWithSet(app.dimensions, 8)
+    app.selectedCards=[]
+    app.gamePaused=False
+    app.usedHints=[]
+    app.gameOver=False
+    app.lose=False
+    app.colorBorder='yellow'
+    # special theme
+    app.shapeAngleSpeed=[0]*8
+    app.speed=[]
+    # creative element**************************
+    # varibles for flipping cards
+    app.urlBack='https://opengameart.org/sites/default/files/card%20back%20black.png'
+    app.faceBack=True
+    app.faceBack=[True]*8
+    app.timeToSee=0.001
+    app.startFlipBack=False
+    app.numberPressed=[]
+    app.countFlipCreative=0
+    app.countSeeTime=0
+    app.allowedCountSeeTime=3
+    app.chanceLeft=0
+    app.speedCreative=[0]*8
+    app.touch=1
+
+####################################################
+# Code used by multiple screens
+####################################################
+
+def onKeyPressHelper(app, key):
+    # Since every screen does the same thing on key presses, we can
+    # write the main logic here and just have them call this helper fn
+    # You should add/edit some code here...
+    if   key == 'd': setActiveScreen('setDimsScreen')
+    elif key == 't': setActiveScreen('setThemeScreen')
+    elif key == '?': setActiveScreen('helpScreen')
+    elif key == 'p': setActiveScreen('playScreen')
+
+def drawScreenTitle(app, screenTitle):
+    drawLabel('SuperSet!', app.width/2, 20, size=20, bold=True)
+    drawLabel(screenTitle, app.width/2, 50, size=16, bold=True)
+####################################################
+# helpScreen
+####################################################
+
+def helpScreen_redrawAll(app):
+    drawScreenTitle(app, 'Help Screen')
+    drawLabel('Press p to play', 102, 100, size=16)
+    drawLabel('Press n to start new game',142,120,size=16)
+    drawLabel('Press d to set dimensions (number of features and options)',259,140,size=16)
+    drawLabel('Press t to set theme (how cards look)',181,160,size=16)
+    drawLabel('Press ? to show help screen (this screen)',196,180,size=16)
+    drawLabel('When playing, press h for hints',159,200,size=16)
+    drawLine(100,220,900,220)
+
+def helpScreen_onKeyPress(app, key):
+    onKeyPressHelper(app, key)
+
+####################################################
+# setDimsScreen
+####################################################
+
+def setDimsScreen_onScreenActivate(app):
+    print('''
+
+********************************************
+You just activated the setDims Screen!
+You can put code here (in setDimsScreen_onScreenActivate)
+to do something each time the user activates this screen.
+********************************************
+''')
+
+def setDimsScreen_redrawAll(app):
+    drawLabel(f'Current Dimensions: {app.dimensions}',500,100,size=16)
+    drawLabel('Use digits 3-5 and backspace to type new dimensions',500,150,size=16)
+    drawLabel('Press enter to set the new dimensions',500,170,size=16)
+    drawLabel(f'NewDimensions: {app.dimensions}',500,200,size=16)
+    # when drawing wrong dimensions
+    if(app.countGreaterFive):
+        drawLabel('Dims can at most have one five (or app is too slow)',500,250,size=16,fill='red')
+    elif(app.dimSumGreaterFifteen):
+        drawLabel('Dims must sum to 15 or less (or app is too slow)',500,250,size=16,fill='red')
+    elif(app.LessTwoFeature):
+        drawLabel('must at least have two features',500,250,size=16,fill='red')
+def setDimsScreen_onKeyPress(app, key):
+    onKeyPressHelper(app, key)
+    numbers='12345'
+    app.countGreaterFive=False
+    app.dimSumGreaterFifteen=False
+    app.LessTwoFeature=False
+    for i in range(len(numbers)):
+        if(key==(numbers[i]) and len(app.dimensions)<5):
+            app.dimensions.append(int(key))
+    if(key=='backspace'):
+        if(len(app.dimensions)>0):
+            app.dimensions.pop()
+    # enter to start play
+    if(key=='enter'):
+        if(len(app.dimensions)<2):
+            app.LessTwoFeature=True
+            app.dimensions=[3,3]
+        elif(sum(app.dimensions)>15):
+            print('s')
+            app.dimSumGreaterFifteen=True
+        elif(app.dimensions.count(5)>1):
+            app.countGreaterFive=True
+        else:
+            print('s')
+            setActiveScreen('playScreen')
+            app.howManyCard=min(app.dimensions)
+            default(app)
+            app.playScreenCounter=0
+    return app.dimensions
+
+####################################################
+# setThemeScreen
+####################################################
+
+def setThemeScreen_redrawAll(app):
+    drawScreenTitle(app, 'Set Theme Screen')
+    drawLabel('Current Them Letters',500,100,size=16)
+    drawLabel('Use digits or arrows to set the new theme',500,120,size=16)
+    drawLabel('Press p to play, Press ? for help',500,140,size=16)
+    drawLabel(f'Theme 0: {app.letter}',110,180,size=16,fill=app.themeSelectionColor0)
+    drawLabel(f'Theme 1: {app.standard}', 118,200,size=16,fill=app.themeSelectionColor1)
+    drawLabel(f'Theme 2: {app.special}', 112,220,size=16,fill=app.themeSelectionColor2)
+    drawLabel(f'Theme 3: {app.creative}', 116,240,size=16,fill=app.themeSelectionColor3)
+
+
+def setThemeScreen_onKeyPress(app, key):
+    onKeyPressHelper(app, key)
+    if(key=='1' or key=='2' or key=='0'):
+        selectionColor(app,key)
+    if(key=='down'):
+        app.countInDimensions+=1
+        selectionColor(app,app.countInDimensions%4)
+    elif(key=='up'):
+        app.countInDimensions-=1
+        selectionColor(app,app.countInDimensions%4)
+        
+    #function to determine the dimention 
+def selectionColor(app,number):
+    if(number=='0' or number==0):
+        app.themeSelectionColor0='red'
+        app.themeSelectionColor1='black'
+        app.themeSelectionColor2='black'
+        app.themeSelectionColor3='black'
+        app.level0=True
+        app.level1=False
+        app.level2=False
+        app.level3=False
+    elif(number=='1' or number==1):
+        app.themeSelectionColor1='red'
+        app.themeSelectionColor2='black'
+        app.themeSelectionColor0='black'
+        app.themeSelectionColor3='black'
+        app.level0=False
+        app.level1=True
+        app.level2=False
+        app.level3=False
+    elif(number=='2' or number==2):
+        app.themeSelectionColor2='red'
+        app.themeSelectionColor1='black'
+        app.themeSelectionColor0='black'
+        app.themeSelectionColor3='black'
+        app.level0=False
+        app.level1=False
+        app.level2=True
+        app.level3=False
+    elif(number=='3' or number==3):
+        app.themeSelectionColor3='red'
+        app.themeSelectionColor1='black'
+        app.themeSelectionColor0='black'
+        app.themeSelectionColor2='black'
+        app.level0=False
+        app.level1=False
+        app.level2=False
+        app.level3=True
+
+
+####################################################
+# playScreen
+####################################################
+
+# help to draw card
+def getCardsBound(app,i):
+    if(i<5):
+        x1=200
+        y1=170
+        x1+=150*i
+        return x1,y1,120,180
+    if(i>=5):
+        y1=395
+        x1=200
+        x1+=150*(i-5)
+        return x1,y1,120,180
+        
+def isGameOver(app):
+    if(app.livesLeft==0):
+        app.gameOver=True
+        app.lose=True
+    elif(app.roundLeft==0):
+        app.gameOver=True
+
+# set to default after the right set is found
+def default(app):
+    app.gamePaused=False
+    app.board,app.foundSet=getRandomBoardWithSet(app.dimensions, 8)
+    app.selectedCards=[]
+    app.inRangeNumber=[]
+    app.countClicks=0
+    app.usedHints=[]
+    
+# default to letter if dim is too large
+def dimsTooLargeForTheme(dims,themeDims):
+    if(len(dims)>len(themeDims)):
+        return False
+    for i in range(len(dims)):
+        if(dims[i]>themeDims[i]):
+            return False
+    return True
+
+def playScreen_redrawAll(app):
+    chanceLeft=0
+    # draw label/debugging info
+    if(app.gameOver!=True):
+        drawLabel('Main Game Screen',500,50,bold=True,size=16)
+        drawLabel('Click on cards to select or deselect',500,70,size=16)
+        drawLabel('Press h for hints (hints cost 15 seconds each)',500,90,size=16)
+        drawLabel(f'Select a set with {app.howManyCard} cards',500,110,size=16)
+        drawLabel('Debugging Info',105,100,size=16)
+        drawLabel(f'dims = {app.dimensions}',102,120,size=16)
+        drawLabel(f'theme = {app.standard}',113,140,size=16)
+        drawLabel(f'rounds left = {app.roundLeft}',100,160,size=16)
+        drawLabel(f'lives left = {app.livesLeft}',92,180,size=16)
+        drawLabel(f'elapsed time = {int(app.playScreenCounter)}',113,200, size=16)
+        dashed=False
+        # draw cards
+        if(not app.level3):
+            for i in range(8):
+                x1,y1,width,height=getCardsBound(app,i)
+                if(i in app.inRangeNumber):
+                    drawRect(x1,y1,width,height,borderWidth=6,border=app.colorBorder,fill=None,dashes=True)
+                else:
+                    drawRect(x1,y1,width,height,borderWidth=6,border='black',fill=None)
+        # draw creative back of the card
+        else:
+            drawLabel('flipping card instruction',820,80,size=13,bold=True)
+            if(app.allowedCountSeeTime-app.countSeeTime>=0):
+                chanceLeft=app.allowedCountSeeTime-app.countSeeTime
+            drawLabel(f'you have {chanceLeft} chance to flip the card',820,110,size=13)
+            drawLabel(f'press number 1-8 to flip cards',829,130)
+            drawLabel(f'(over flipping cost 10 seconds each)',820,150,size=13)
+            drawRect(700,50,250,120,fill=None,border='black')
+            for i in range(8):
+                x1,y1,width,height=getCardsBound(app,i)
+                if(app.faceBack[i]==True):
+                    drawImage(app.urlBack,x1,y1,width=width,height=height)
+                else:
+                    drawCreative(app,i)
+                    drawRect(x1,y1,width,height,borderWidth=6,border='black',fill=None)
+                if(i in app.inRangeNumber):
+                    drawRect(x1,y1,width,height,borderWidth=6,border=app.colorBorder,fill=None,dashes=True)
+                
+
+        # draw label after the set if found
+        if(app.gamePaused==True):
+            if(app.countClicks==app.howManyCard):
+                if(app.finalResult==True):
+                    drawLabel("Correct!",500,130,size=16,fill='green')
+                    drawLabel('Press any key or the mouse to continue',500,150,size=16,fill='green')
+                else:
+                    drawLabel(app.finalResult,500,130,size=16,fill='red')
+                    drawLabel('Press any key or the mouse to continue',500,150,size=16,fill='red')
+        # draw different theme
+        if(dimsTooLargeForTheme(app.dimensions,app.specialDimension)!=True and app.level2==True):
+            drawCardInLetterTheme(app)
+        elif(dimsTooLargeForTheme(app.dimensions,app.standardDimensions)!=True and app.level1==True):
+            drawCardInLetterTheme(app)
+        else:
+            if(app.level0==True):
+                drawCardInLetterTheme(app)
+            elif(app.level1==True ):
+                drawCardInShapes(app)
+            elif(app.level2==True):
+                drawCardInAnimationTheme(app)
+                
+                
+                 
+    # draw label after the game ends  
+    else:
+        drawLabel('Press n for a new game',500,350,size=16)
+        if(app.lose==True):
+            drawLabel('Game over. You Lost. :-(',500,300,size=50,bold=True)
+        else:
+            drawLabel(f'You won in {int(app.playScreenCounter)} seconds!',500,300,size=50,bold=True)
+            
+            
+        # On Step
+def playScreen_onStep(app):
+    if(app.gameOver!=True):
+        app.playScreenCounter += 0.03
+    # change speed
+    if(app.level2==True):  
+        speed(app)
+        for i in range(8):
+            if(len(app.dimensions)!=2):
+                app.shapeAngleSpeed[i]+=app.speed[i]
+            else:
+                app.shapeAngleSpeed[i]+=5
+    # crerative, 
+    if(app.level3==True):
+        if(app.startFlipBack):
+            app.timeToSee+=0.03
+        if(app.timeToSee>=4):
+            for i in range(len(app.faceBack)):
+                app.faceBack[i]=True
+            app.timeToSee=0
+            app.startFlipBack=False
+        for i in range(8):
+            if(len(app.dimensions)==3):
+                third=app.board[i][2]
+                x,y,width,height=getCardsBound(app,i)
+                if(third=='A'):
+                    app.speedCreative[i]+=(1*app.touch)
+                    bouncingMotionHorizontal(app,app.speedCreative[i],i)
+                elif(third=='B'):
+                    app.speedCreative[i]+=(4*app.touch)
+                    bouncingMotionHorizontal(app,app.speedCreative[i],i)
+                else:
+                    app.speedCreative[i]+=(8*app.touch)
+                    bouncingMotionHorizontal(app,app.speedCreative[i],i)
+            else:
+                app.speedCreative[i]+=(1*app.touch)
+                bouncingMotionHorizontal(app,app.speedCreative[i],i)
+                
+def bouncingMotionHorizontal(app,position,i):
+    if(position>100):
+        app.speedCreative[i]=100
+        app.touch=-1
+    elif(position<0):
+        app.speedCreative[i]=0
+        app.touch=1
+
+
+    
+def playScreen_onKeyPress(app, key):
+    onKeyPressHelper(app, key)
+    if(key=='n'):
+        restartApp(app)
+        # restore the game after paused
+    if(app.gameOver!=True):
+        if(app.gamePaused):
+            if(key in string.printable):
+                app.roundLeft-=1
+                default(app)
+                return 
+        # creative, pressing the number can flip the card to see
+
+        if(app.startFlipBack==False):
+            for i in range(1,9):
+                if(key==str(i)):
+                    app.faceBack[i-1]=False
+        if(app.startFlipBack==False): 
+            if(key not in app.numberPressed and key in '12345678'):
+                app.numberPressed.append(str(key))
+                app.countFlipCreative+=1
+        if(app.countFlipCreative==app.howManyCard):
+            app.startFlipBack=True
+            app.countFlipCreative=0
+            app.numberPressed=[]
+            app.countSeeTime+=1
+            if(app.countSeeTime>app.allowedCountSeeTime):
+                app.playScreenCounter+=10
+        # ************giving hints session
+        if(app.gamePaused!=True):
+            if(key=='h'):
+                app.playScreenCounter+=15
+                #if ur previous click was wrong
+                for i in range(len(app.selectedCards)):
+                    if(app.selectedCards[i] not in app.foundSet):
+                        app.inRangeNumber.pop(i)
+                        app.selectedCards.remove(app.selectedCards[i])
+                        app.countClicks-=1
+                        return
+                #giving hints
+                for i in range(8):
+                    if(app.board[i] in app.foundSet and app.board[i] not in app.usedHints and app.board[i] not in app.selectedCards):
+                        app.inRangeNumber.append(i)
+                        app.selectedCards.append(app.board[i])
+                        app.countClicks+=1
+                        app.usedHints.append(app.board[i])
+                        if(app.countClicks==app.howManyCard):
+                            app.finalResult=checkSelectionIsSet(app.board, app.selectedCards, app.howManyCard)
+                            app.colorBorder='green'  
+                            app.gamePaused=True
+                        break
+                isGameOver(app)
+
+
+
+def playScreen_onMousePress(app,mouseX,mouseY):
+    if(app.gameOver!=True):
+        if(app.gamePaused==False):
+            app.colorBorder='yellow'
+            # mouse select
+            for i in range(8):
+                x1,y1,width,height=getCardsBound(app,i)
+                if(mouseX>x1 and mouseX<x1+width and mouseY>y1 and mouseY<y1+height):
+                    if(i not in app.inRangeNumber):
+                        app.inRangeNumber.append(i)
+                        app.selectedCards.append(app.board[i])
+                        app.madeClickInPlay=True
+                        app.countClicks+=1
+            # mouse deselect
+            if(app.madeClickInPlay!=True):
+                for i in range(8):
+                    x1,y1,width,height=getCardsBound(app,i)
+                    if(mouseX>x1 and mouseX<x1+width and mouseY>y1 and mouseY<y1+height):
+                        if(i in app.inRangeNumber):
+                            app.inRangeNumber.remove(i)
+                            app.selectedCards.remove(app.board[i])
+                            app.countClicks-=1
+            # start checking the result is right
+            if(app.countClicks==app.howManyCard):
+                app.finalResult=checkSelectionIsSet(app.board, app.selectedCards, app.howManyCard)
+                if(app.finalResult!=True):
+                    app.colorBorder='red'
+                    app.livesLeft-=1
+                else:
+                    app.colorBorder='green'
+                app.gamePaused=True
+            app.madeClickInPlay=False
+        elif(app.gamePaused==True):
+            if(mouseX<app.width and mouseX>0):
+                app.roundLeft-=1
+                default(app)
+        isGameOver(app)
+    
+
+            
+# draw letter function******************************************************************* 
+def drawCardInLetterTheme(app):
+    for i in range(8):
+        if(i<5):
+            drawLabel(app.board[i],260+150*i,260,size=26,bold=True)
+        if(i>=5):
+            drawLabel(app.board[i],260+150*(i-5),485,size=26,bold=True)
+            
+#draw shapes function*****************************************************************   
+def drawCardInShapes(app):
+    shapeCount=1
+    shapeColor=''
+    shape=''
+    x=260
+    border=False
+    shapeOpacity=100
+    for i in range(8):
+        if(i<5):
+            x+=150*i
+        else:
+            x+=150*(i-5)
+        first=app.board[i][0]
+        if(first=='A'):
+            shapeColor='red'
+        elif(first=='B'):
+            shapeColor='green'
+        else:
+            shapeColor='blue'
+        insideColor=shapeColor
+        if(len(app.board[i])>2):
+            third=app.board[i][2]
+            if(third=='A'):
+                shapeCount=3
+            elif(third=='B'):
+                shapeCount=2
+            else:
+                shapeCount=1
+        if(len(app.board[i])>3):
+            fourth=app.board[i][3]
+            if(fourth=='A'):
+                insideColor=None
+            elif(fourth=='B'):
+                shapeOpacity=25
+                border=True
+            else:
+                shapeOpacity=100
+        second=app.board[i][1]
+        if(second=='A'):
+            drawOvalWithCount(x,app,shapeCount,shapeColor,i,shapeOpacity,insideColor,border)
+        elif(second=='B'):
+            drawRecWithCount(x,app,shapeCount,shapeColor,i,shapeOpacity,insideColor,border)
+        else:
+            drawStarWithCount(x,app,shapeCount,shapeColor,i,shapeOpacity,insideColor,border)
+        x=260
+# draw card y position
+def drawCardGetPosition(app,i,shapeCount):
+    dy=0
+    if(i<5):
+        if(shapeCount==1):
+            y=260
+        elif(shapeCount==2):
+            y=215
+            dy=90
+        else:
+            y=200
+            dy=60
+    else:
+        if(shapeCount==1):
+            y=485
+        elif(shapeCount==2):
+            y=440
+            dy=90
+        else:
+            y=425
+            dy=60
+    return y,dy
+    #draw different shapes in draw shape 
+def drawOvalWithCount(x,app,shapeCount,shapeColor,i,shapeOpacity,insideColor,border):
+    y,dy=drawCardGetPosition(app,i,shapeCount)
+    for j in range(shapeCount):
+        drawOval(x,y+dy*j,84,42,fill=insideColor,opacity=shapeOpacity,border=shapeColor,borderWidth=4)
+        if(border):
+            drawOval(x,y+dy*j,84,42,fill=None,border=shapeColor,borderWidth=4)
+def drawRecWithCount(x,app,shapeCount,shapeColor,i,shapeOpacity,insideColor,border):
+    y,dy=drawCardGetPosition(app,i,shapeCount)
+    for j in range(shapeCount):
+        drawPolygon(x,y+dy*j-21,x+42,y+dy*j,x,y+dy*j+21,x-42,y+dy*j,fill=insideColor,opacity=shapeOpacity,border=shapeColor,borderWidth=4)
+        if(border):
+            drawPolygon(x,y+dy*j-21,x+42,y+dy*j,x,y+dy*j+21,x-42,y+dy*j,fill=None,border=shapeColor,borderWidth=4)
+def drawStarWithCount(x,app,shapeCount,shapeColor,i,shapeOpacity,insideColor,border):
+    y,dy=drawCardGetPosition(app,i,shapeCount)
+    for j in range(shapeCount):
+        drawStar(x,y+dy*j,25.2,5,fill=insideColor,opacity=shapeOpacity,border=shapeColor,borderWidth=4)
+        if(border):
+            drawStar(x,y+dy*j,25.2,5,fill=None,border=shapeColor,borderWidth=4)
+            
+# draw animation fundtions************************************************************************************
+def drawCardInAnimationTheme(app):
+    shapeColor=''
+    shape=''
+    x=260
+    border='black'
+    dashes=False
+    borderWidth=0
+    for i in range(8):
+        if(i<5):
+            x+=150*i
+        else:
+            x+=150*(i-5)
+        first=app.board[i][0]
+        if(first=='A'):
+            shapeColor='orange'
+        elif(first=='B'):
+            shapeColor='pink'
+        elif(first=='C'):
+            shapeColor='cyan'
+        else:
+            shapeColor='purple'
+        if(len(app.board[i])>3):
+            fourth=app.board[i][3]
+            if(fourth=='B'):
+                borderWidth=4
+            elif(fourth=='C'):
+                dashes=True
+            elif(fourth=='D'):
+                border=None
+        second=app.board[i][1]
+        if(second=='A'):
+            points=3
+        elif(second=='B'):
+            points=4
+        elif(second=='C'):
+            points=5
+        else:
+            points=6
+        drawPolygon1(x,app,shapeColor,i,borderWidth,dashes,points,border)
+        x=260
+        border='black'
+        dashes=False
+        borderWidth=0
+
+    #drawing shape function   
+def drawPolygon1(x,app,shapeColor,i,borderWidth,dashes,points,border):
+    y,increament=drawCardGetPosition(app,i,1)
+    if(borderWidth==4):
+        drawRegularPolygon(x,y,40,points,fill=shapeColor,border=border,borderWidth=borderWidth,rotateAngle=app.shapeAngleSpeed[i],dashes=dashes)
+    else:
+        drawRegularPolygon(x,y,40,points,fill=shapeColor,border=border,rotateAngle=app.shapeAngleSpeed[i],dashes=dashes)
+
+# changing speed function in animation
+def speed(app):
+    for i in range(8):
+        if(len(app.board[i])>2):
+            third=app.board[i][2]
+            if(third=='A'):
+                app.speed.append(5)
+            elif(third=='B'):
+                app.speed.append(-5)
+            elif(third=='C'):
+                app.speed.append(20)
+            else:
+                app.speed.append(-20)
+                
+# draw creative animation
+def drawCreative(app,cardNumber):
+    shapeCount=1
+    shapeColor=''
+    x=0
+    for i in range(8):
+        x=200
+        if(i<5):
+            x+=150*i
+        else:
+            x+=150*(i-5)
+        first=app.board[i][0]
+        if(first=='A'):
+            shapeColor='pink'
+        elif(first=='B'):
+            shapeColor='purple'
+        else:
+            shapeColor='orange'
+        second=app.board[i][1]
+        if(second=='A'):
+            shapeCount=1
+        elif(second=='B'):
+            shapeCount=2
+        else:
+            shapeCount=3
+        if(i==cardNumber):
+            y,dy=drawCardGetPosition(app,i,shapeCount)
+            for j in range(shapeCount):
+                drawCircle(x+12+app.speedCreative[i],y+dy*j,10,fill=shapeColor,border='black')
+
+
+###############################################
+# Functions copied from console-based app
+###############################################
+
+def stringProduct(L):
+    resultTuples = list(itertools.product(*L))
+    resultStrings = [''.join(t) for t in resultTuples]
+    return resultStrings
+
+def combinations(L, n):
+    return [list(v) for v in itertools.combinations(L, n)]
+
+def allSame(L):
+    for i in range(len(L)-1):
+        if(L[i]!=L[i+1]):
+            return False
+    return True
+
+def allDiffer(L):
+    for i in range(len(L)):
+        for j in range(i):
+            if(L[i]==L[j]):
+                return False 
+    return True
+
+def isSet(cards):
+    collist=[]
+    for col in range(len(cards[0])):
+        for row in range(len(cards)):
+            collist+=[cards[row][col]]
+        if(allDiffer(collist)!=True and allSame(collist)!=True):
+            return False
+        collist=[]
+    return True
+    
+def makeSuperSetDeck(dims):
+    alphabets='ABCDE'
+    L=[]
+    for i in range(len(dims)):
+        L.append(alphabets[:dims[i]])
+    return stringProduct(L)
+
+def boardContainsSelection(board, selection):
+    for i in range(len(selection)):
+        if(selection[i] not in board):
+            return False
+    return True
+
+def checkSelectionIsSet(board, selection, cardsPerSet):
+    if(len(board)==0):
+        return 'Empty board!'
+    if(len(selection)!=cardsPerSet):
+        return 'Wrong number of cards!'
+    if(boardContainsSelection(board, selection)!=True):
+        return 'Some of those cards are not on the board!'
+    if(allDiffer(selection)!=True):
+        return 'Some of those cards are duplicates!'
+    if(isSet(selection)!=True):
+        return 'Those cards do not form a set!'
+    return True
+    
+
+def findFirstSet(board, cardsPerSet):
+    cards=combinations(board, cardsPerSet)
+    for i in range(len(cards)):
+        if(isSet(cards[i])):
+            return cards[i]
+    return None
+
+def dealUntilSetExists(deck, cardsPerSet):
+    board=[]
+    count=0
+    while True:
+        board.append(deck[count])
+        count+=1
+        if(findFirstSet(board, cardsPerSet)!=None):
+            return sorted(findFirstSet(board, cardsPerSet))
+        
+
+def getRandomBoardWithSet(dims, targetBoardSize):
+    deck=makeSuperSetDeck(dims)
+    random.shuffle(deck)
+    foundSet=dealUntilSetExists(deck, min(dims))
+    count=0
+    board=copy.copy(foundSet)
+    while(len(board)<targetBoardSize):
+        if(deck[count] not in foundSet):
+            board.append(deck[count])
+        count+=1
+    board.sort()
+    return board, foundSet
+
+####################################################
+# main function
+####################################################
+
+def main():
+    runAppWithScreens(initialScreen='helpScreen')
+
+main()
